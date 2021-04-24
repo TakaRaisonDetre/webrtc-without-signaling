@@ -11,7 +11,7 @@ constructor (props){
 }
 
 componentDidMount(){
-
+// this configuration will added with STUN and TURN
 const pc_config = null
 
 
