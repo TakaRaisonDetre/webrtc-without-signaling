@@ -5,99 +5,178 @@ import styled from 'styled-components'
 import io from 'socket.io-client'
 
 class App extends Component {
-constructor (props){
-  super(props)
-  this.localViewRef = React.createRef()
-  this.remoteViewRef = React.createRef()
+  constructor(props) {
+    super(props)
 
-  this.socket = null
+    // https://reactjs.org/docs/refs-and-the-dom.html
+    this.localVideoref = React.createRef()
+    this.remoteVideoref = React.createRef()
 
-}
-
-componentDidMount(){
-
-this.socket = io(
-  '/webrtcPeer',
-  {
-    path: '/webrtc',
-    query:{}
-  }
-)
-// connection success event handler
-this.socket.on('connection-success', success=>{
-  console.log(success)
-})
-
-// this configuration will added with STUN and TURN
-const pc_config = null
-
-
-
-  this.pcon = new RTCPeerConnection(pc_config)
-  
-  this.pcon.onicecandidate =(event) =>{
-    if(event.candidate) console.log(JSON.stringify(event.candidate))
-  }
-     // triggered when there is a change in connection state
-  this.pcon.oniceconnectionstatechange =(event) =>{
-    console.log(event)
+    this.socket = null
+    this.candidates = []
   }
 
-  this.pcon.ontrack =(event) =>{
-    this.remoteViewRef.current.srcObject = event.streams[0]
-  }
+  componentDidMount = () => {
 
- 
-  
+    this.socket = io(
+      '/webrtcPeer',
+      {
+        path: '/webrtc',
+        query: {}
+      }
+    )
 
+    this.socket.on('connection-success', success => {
+      console.log(success)
+    })
 
-  const success = (stream)=>{
-    window.localStream = stream  
-    this.localViewRef.current.srcObject = stream 
-    this.pcon.addStream(stream)  
+    this.socket.on('offerOrAnswer', (sdp) => {
+      this.textref.value = JSON.stringify(sdp)
+
+      // set sdp as remote description
+      this.pc.setRemoteDescription(new RTCSessionDescription(sdp))
+    })
+
+    this.socket.on('candidate', (candidate) => {
+      // console.log('From Peer... ', JSON.stringify(candidate))
+      // this.candidates = [...this.candidates, candidate]
+      this.pc.addIceCandidate(new RTCIceCandidate(candidate))
+    })
+
+    // const pc_config = null
+
+    const pc_config = {
+      "iceServers": [
+        // {
+        //   urls: 'stun:[STUN_IP]:[PORT]',
+        //   'credentials': '[YOR CREDENTIALS]',
+        //   'username': '[USERNAME]'
+        // },
+        {
+          urls : 'stun:stun.l.google.com:19302'
+        }
+      ]
     }
-  
-  const failure = (e)=>{
-      console.log('GetuserMedial Error', e)
-    } 
+
+    // https://developer.mozilla.org/en-US/docs/Web/API/RTCPeerConnection
+    // create an instance of RTCPeerConnection
+    this.pc = new RTCPeerConnection(pc_config)
+
+    // triggered when a new candidate is returned
+    this.pc.onicecandidate = (e) => {
+      // send the candidates to the remote peer
+      // see addCandidate below to be triggered on the remote peer
+      if (e.candidate) {
+        // console.log(JSON.stringify(e.candidate))
+        this.sendToPeer('candidate', e.candidate)
+      }
+    }
+
+    // triggered when there is a change in connection state
+    this.pc.oniceconnectionstatechange = (e) => {
+      console.log(e)
+    }
+
+    // triggered when a stream is added to pc, see below - this.pc.addStream(stream)
+    this.pc.ontrack = (e) => {
+      this.remoteVideoref.current.srcObject = e.streams[0]
+    }
+
+    // called when getUserMedia() successfully returns - see below
+    // getUserMedia() returns a MediaStream object (https://developer.mozilla.org/en-US/docs/Web/API/MediaStream)
+    const success = (stream) => {
+      window.localStream = stream
+      this.localVideoref.current.srcObject = stream
+      this.pc.addstream(stream)
+    }
+
+    // called when getUserMedia() fails - see below
+    const failure = (e) => {
+      console.log('getUserMedia Error: ', e)
+    }
+
+    // https://developer.mozilla.org/en-US/docs/Web/API/MediaDevices/getUserMedia
+    // see the above link for more constraint options
+    const constraints = {
+      audio: false,
+      video: true,
+      // video: {
+      //   width: 1280,
+      //   height: 720
+      // },
+      // video: {
+      //   width: { min: 1280 },
+      // }
+    }
+
+    // https://developer.mozilla.org/en-US/docs/Web/API/MediaDevices/getUserMedia
+    navigator.mediaDevices.getUserMedia(constraints)
+      .then(success)
+      .catch(failure)
+  }
+
+  sendToPeer = (messageType, payload) => {
+    this.socket.emit(messageType, {
+      socketID: this.socket.id,
+      payload
+    })
+  }
+
+  /* ACTION METHODS FROM THE BUTTONS ON SCREEN */
+
+  createOffer = () => {
+    console.log('Offer')
+
+    // https://developer.mozilla.org/en-US/docs/Web/API/RTCPeerConnection/createOffer
+    // initiates the creation of SDP
+    this.pc.createOffer({ offerToReceiveVideo: 1 })
+      .then(sdp => {
+        // console.log(JSON.stringify(sdp))
+
+        // set offer sdp as local description
+        this.pc.setLocalDescription(sdp)
+
+        this.sendToPeer('offerOrAnswer', sdp)
+    })
+  }
 
 
-    const constraints = {video:true}
-   // navigator.getUserMedia(constraints, success, failure )
-   navigator.mediaDevices.getUserMedia(constraints)
-   .then(success)
-   .catch(failure)
+  setRemoteDescription = () => {
+    // retrieve and parse the SDP copied from the remote peer
+    const desc = JSON.parse(this.textref.value)
 
-}
+    // set sdp as remote description
+    this.pc.setRemoteDescription(new RTCSessionDescription(desc))
+  }
 
-createOffer = () =>{
-  console.log('Offer')
-  this.pcon.createOffer({offerToReceiveVideo:1})
-  .then(sdp=>{
-    console.log(JSON.stringify(sdp))
-    this.pcon.setLocalDescription(sdp)
-  },e=>{})
-}
+  // https://developer.mozilla.org/en-US/docs/Web/API/RTCPeerConnection/createAnswer
+  // creates an SDP answer to an offer received from remote peer
+  createAnswer = () => {
+    console.log('Answer')
+    this.pc.createAnswer({ offerToReceiveVideo: 1 })
+      .then(sdp => {
+        // console.log(JSON.stringify(sdp))
 
-setRemoteDescription =() =>{
-  const descritpion = JSON.parse(this.textref.value)
-  this.pcon.setRemoteDescription(new RTCSessionDescription(descritpion));
-}
+        // set answer sdp as local description
+        this.pc.setLocalDescription(sdp)
 
-createAnswer =()=>{
-  console.log('Answer')
-  this.pcon.createAnswer({offerToReceiveVideo:1})
-  .then(sdp=>{
-    console.log(JSON.stringify(sdp))
-    this.pcon.setLocalDescription(sdp)
-  })
-}
+        this.sendToPeer('offerOrAnswer', sdp)
+    })
+  }
 
-addCandidate =()=>{
-  const candidate = JSON.parse(this.textref.value)
-  console.log('Adding candidate', candidate)
-  this.pcon.addIceCandidate(new RTCIceCandidate(candidate))
-}
+  addCandidate = () => {
+    // retrieve and parse the Candidate copied from the remote peer
+    // const candidate = JSON.parse(this.textref.value)
+    // console.log('Adding candidate:', candidate)
+
+    // add the candidate to the peer connection
+    // this.pc.addIceCandidate(new RTCIceCandidate(candidate))
+
+    this.candidates.forEach(candidate => {
+      console.log(JSON.stringify(candidate))
+      this.pc.addIceCandidate(new RTCIceCandidate(candidate))
+    });
+  }
 
 
   render(){

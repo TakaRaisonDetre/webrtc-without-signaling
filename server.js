@@ -34,4 +34,28 @@ peers.on('connection', socket=>{
         console.log('disconnected')
         connectedPeers.delete(socket.id)
     })
+
+     socket.on('offerOrAnswer',(data)=>{
+         //send to the other peer(s) if any
+         for (const [socketID, socket] of connectedPeers.entries()){
+             // not self
+             if(socketID!==data.socketID){
+                 console.log(socketID, data.payload.type)
+                 // payload is sdp
+                 socket.emit('offerOrAnswer', data.payload) // we need to create event handler for client side app
+             }
+         }
+     })
+
+     socket.on('candidate', (data)=>{
+         // send candidate to the other peer if any
+         for(const [socketID, socket] of connectedPeers.entries()){
+              // not self
+              if(socketID!==data.socketID){
+                  console.log(socketID, data.payload)
+                  // candidate info
+                  socket.emit('candidate', data.payload) // we need to create event handler for client side app
+              }
+         }
+     })
 })
