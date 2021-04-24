@@ -5,6 +5,7 @@ import styled from 'styled-components'
 import io from 'socket.io-client'
 
 class App extends Component {
+ 
   constructor(props) {
     super(props)
 
@@ -39,7 +40,7 @@ class App extends Component {
 
     this.socket.on('candidate', (candidate) => {
       // console.log('From Peer... ', JSON.stringify(candidate))
-      // this.candidates = [...this.candidates, candidate]
+      this.candidates = [...this.candidates, candidate]
       this.pc.addIceCandidate(new RTCIceCandidate(candidate))
     })
 
@@ -67,7 +68,7 @@ class App extends Component {
       // send the candidates to the remote peer
       // see addCandidate below to be triggered on the remote peer
       if (e.candidate) {
-        // console.log(JSON.stringify(e.candidate))
+       console.log(JSON.stringify(e.candidate))
         this.sendToPeer('candidate', e.candidate)
       }
     }
@@ -78,24 +79,15 @@ class App extends Component {
     }
 
     // triggered when a stream is added to pc, see below - this.pc.addStream(stream)
-    this.pc.ontrack = (e) => {
-      this.remoteVideoref.current.srcObject = e.streams[0]
-    }
+    //  this.pc.onaddstream = (e)=>{
+    //   this.remoteVideoref.current.srcObject = e.streams[0]
+    //  }
+  
+     this.pc.ontrack = (e) => {
+       this.remoteVideoref.current.srcObject = e.streams[0]
+     }
 
-    // called when getUserMedia() successfully returns - see below
-    // getUserMedia() returns a MediaStream object (https://developer.mozilla.org/en-US/docs/Web/API/MediaStream)
-    const success = (stream) => {
-      window.localStream = stream
-      this.localVideoref.current.srcObject = stream
-      this.pc.addstream(stream)
-    }
-
-    // called when getUserMedia() fails - see below
-    const failure = (e) => {
-      console.log('getUserMedia Error: ', e)
-    }
-
-    // https://developer.mozilla.org/en-US/docs/Web/API/MediaDevices/getUserMedia
+ // https://developer.mozilla.org/en-US/docs/Web/API/MediaDevices/getUserMedia
     // see the above link for more constraint options
     const constraints = {
       audio: false,
@@ -108,11 +100,28 @@ class App extends Component {
       //   width: { min: 1280 },
       // }
     }
+      // called when getUserMedia() successfully returns - see below
+    // getUserMedia() returns a MediaStream object (https://developer.mozilla.org/en-US/docs/Web/API/MediaStream)
+    const success = (stream) => {
+      window.localStream = stream
+      this.localVideoref.current.srcObject = stream
+      this.pc.addStream(stream)
+    }
 
-    // https://developer.mozilla.org/en-US/docs/Web/API/MediaDevices/getUserMedia
-    navigator.mediaDevices.getUserMedia(constraints)
-      .then(success)
-      .catch(failure)
+    // called when getUserMedia() fails - see below
+    const failure = (e) => {
+      console.log('getUserMedia Error: ', e)
+    }
+
+
+     // https://developer.mozilla.org/en-US/docs/Web/API/MediaDevices/getUserMedia
+     navigator.mediaDevices.getUserMedia(constraints)
+     .then(success)
+     .catch(failure)
+  
+
+
+   
   }
 
   sendToPeer = (messageType, payload) => {
@@ -131,7 +140,7 @@ class App extends Component {
     // initiates the creation of SDP
     this.pc.createOffer({ offerToReceiveVideo: 1 })
       .then(sdp => {
-        // console.log(JSON.stringify(sdp))
+         console.log(JSON.stringify(sdp))
 
         // set offer sdp as local description
         this.pc.setLocalDescription(sdp)
@@ -155,23 +164,16 @@ class App extends Component {
     console.log('Answer')
     this.pc.createAnswer({ offerToReceiveVideo: 1 })
       .then(sdp => {
-        // console.log(JSON.stringify(sdp))
+         console.log(JSON.stringify(sdp))
 
         // set answer sdp as local description
         this.pc.setLocalDescription(sdp)
 
         this.sendToPeer('offerOrAnswer', sdp)
-    })
+    }, e=>{})
   }
 
   addCandidate = () => {
-    // retrieve and parse the Candidate copied from the remote peer
-    // const candidate = JSON.parse(this.textref.value)
-    // console.log('Adding candidate:', candidate)
-
-    // add the candidate to the peer connection
-    // this.pc.addIceCandidate(new RTCIceCandidate(candidate))
-
     this.candidates.forEach(candidate => {
       console.log(JSON.stringify(candidate))
       this.pc.addIceCandidate(new RTCIceCandidate(candidate))
@@ -190,12 +192,12 @@ class App extends Component {
      <div style={{backgroundColor:'#222222'}}>
      <video 
        style={{width:240, height:180, margin:5, backgroundColor:'black'}}
-       ref={this.localViewRef} 
+       ref={this.localVideoref} 
        autoPlay></video>
 
       <video 
        style={{width:240, height:180, margin:5, backgroundColor:'black'}}
-       ref={this.remoteViewRef} 
+       ref={this.remoteVideoref} 
        autoPlay></video>
      </div>
      
