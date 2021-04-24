@@ -16,7 +16,22 @@ app.get('/', (req,res)=>{
     res.sendFile(__dirname + 'build/index.html')
 })
 
-
-
 const server = app.listen(port, ()=> console.log('Example 1'))
 
+io.listen(server)
+const peers= io.of('/webrtcPeer')
+
+// keep a referenxe of all socket connections
+
+let connectedPeers = new Map()
+
+peers.on('connection', socket=>{
+    console.log(socket.id)
+    socket.emit('connection-success', {success:socket.id})
+    connectedPeers.set(socket.id, socket)
+
+    socket.on('disconnect',()=>{
+        console.log('disconnected')
+        connectedPeers.delete(socket.id)
+    })
+})

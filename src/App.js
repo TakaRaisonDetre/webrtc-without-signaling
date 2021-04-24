@@ -2,15 +2,32 @@
 import './App.css';
 import React, {Component} from 'react'
 import styled from 'styled-components'
+import io from 'socket.io-client'
 
 class App extends Component {
 constructor (props){
   super(props)
   this.localViewRef = React.createRef()
   this.remoteViewRef = React.createRef()
+
+  this.socket = null
+
 }
 
 componentDidMount(){
+
+this.socket = io(
+  '/webrtcPeer',
+  {
+    path: '/webrtc',
+    query:{}
+  }
+)
+// connection success event handler
+this.socket.on('connection-success', success=>{
+  console.log(success)
+})
+
 // this configuration will added with STUN and TURN
 const pc_config = null
 
